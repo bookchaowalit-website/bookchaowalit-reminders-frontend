@@ -19,6 +19,14 @@ See `README.md` for install and run instructions when present.
 - Not claimed as production-ready unless README and tests prove it.
 - Mobile smoke / emulator acceptance is separate and toolchain-dependent.
 
+## Current product truth
+
+- A small local reminder list with a message, date/time, completion state, and
+  delete action.
+- Items persist in localStorage and are edited in the browser.
+- It does not send notifications, sync across devices, require an account, or
+  claim a hosted reminder service.
+
 ## Source README excerpt
 
 ```

@@ -1,128 +1,169 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-function Shell({
-  title,
-  subtitle,
-  badge = "Portfolio demo · local-only",
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  badge?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-black dark:text-zinc-100">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <header className="mb-8">
-          <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">{badge}</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">{subtitle}</p>
-        </header>
-        {children}
-        <footer className="mt-10 border-t border-zinc-200 pt-4 text-xs text-zinc-500 dark:border-zinc-800">
-          Honest demo: no multi-tenant backend. State (if any) stays in this browser.
-        </footer>
-      </div>
-    </div>
-  );
-}
+type Reminder = { id: string; text: string; when: string; done: boolean };
 
-function Button({
-  children,
-  onClick,
-  variant = "primary",
-  disabled,
-  type = "button",
-  className = "",
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  variant?: "primary" | "secondary" | "ghost" | "danger";
-  disabled?: boolean;
-  type?: "button" | "submit";
-  className?: string;
-}) {
-  const base =
-    "inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition disabled:opacity-50 " +
-    className;
-  const styles =
-    variant === "primary"
-      ? "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-      : variant === "secondary"
-        ? "bg-white text-zinc-900 ring-1 ring-zinc-200 hover:bg-zinc-100 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700"
-        : variant === "danger"
-          ? "bg-red-600 text-white hover:bg-red-500"
-          : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900";
-  return (
-    <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${styles}`}>
-      {children}
-    </button>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950";
+const STARTER: Reminder[] = [
+  { id: "1", text: "Ship portfolio batch", when: "2026-08-24T09:00", done: false },
+  { id: "2", text: "Review the next route", when: "2026-08-24T14:30", done: false },
+  { id: "3", text: "Archive loose notes", when: "2026-08-25T10:00", done: true },
+];
 
 function useLocalStorage<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(initial);
   const [ready, setReady] = useState(false);
+
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(key);
-      if (raw != null) setValue(JSON.parse(raw) as T);
+      const saved = localStorage.getItem(key);
+      if (saved) setValue(JSON.parse(saved) as T);
     } catch {
-      /* ignore */
+      // Keep the sample list usable when browser storage is unavailable.
     }
     setReady(true);
   }, [key]);
+
   useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value, ready]);
+    if (ready) localStorage.setItem(key, JSON.stringify(value));
+  }, [key, ready, value]);
+
   return [value, setValue] as const;
 }
 
-function uid() {
-  return crypto.randomUUID();
+function readableWhen(value: string) {
+  const pieces = value.split("T");
+  return pieces[0].replaceAll("-", ".") + " / " + (pieces[1] || "00:00");
 }
 
-async function copyText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-
-type Rem = { id: string; text: string; when: string; done: boolean };
 export default function Home() {
-  const [items, setItems] = useLocalStorage<Rem[]>("reminders-v1", [
-    { id: "1", text: "Ship portfolio batch", when: new Date().toISOString().slice(0, 16), done: false },
-  ]);
+  const [items, setItems] = useLocalStorage<Reminder[]>("reminders-v1", STARTER);
   const [text, setText] = useState("");
-  const [when, setWhen] = useState(new Date().toISOString().slice(0, 16));
+  const [when, setWhen] = useState("2026-08-24T16:00");
+  const ordered = useMemo(
+    () => [...items].sort((a, b) => a.when.localeCompare(b.when)),
+    [items],
+  );
+  const next = ordered.find((item) => !item.done);
+
+  function addReminder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!text.trim()) return;
+    setItems((current) => [
+      { id: crypto.randomUUID(), text: text.trim(), when, done: false },
+      ...current,
+    ]);
+    setText("");
+  }
+
   return (
-    <Shell title="Reminders" subtitle="Datetime reminders list stored in localStorage.">
-      <div className="mb-4 flex flex-wrap gap-2">
-        <input className={`${inputClass} min-w-[12rem] flex-1`} value={text} onChange={(e) => setText(e.target.value)} placeholder="Reminder" />
-        <input type="datetime-local" className={inputClass} value={when} onChange={(e) => setWhen(e.target.value)} />
-        <Button onClick={() => { if (!text.trim()) return; setItems((p) => [{ id: uid(), text: text.trim(), when, done: false }, ...p]); setText(""); }}>Add</Button>
+    <main className="tide-shell">
+      <div className="tide-frame">
+        <header className="tide-masthead">
+          <div className="tide-brand">
+            <span className="tide-mark" aria-hidden="true">TB</span>
+            <span>TIDEBOARD / REMINDERS</span>
+          </div>
+          <div className="tide-meta">
+            <span>LOCAL CURRENT</span>
+            <span>NO ALERTS</span>
+          </div>
+        </header>
+
+        <section className="tide-hero">
+          <div>
+            <h1>
+              Keep the next thing
+              <br />
+              <em>in sight.</em>
+            </h1>
+            <p>
+              A quiet local board for the messages and dates that should surface
+              before they drift out of reach.
+            </p>
+          </div>
+          <div className="tide-horizon">
+            <span className="tide-horizon-label">NEXT MARK</span>
+            <strong>{next ? readableWhen(next.when).split(" / ")[1] : "--:--"}</strong>
+            <span>{next ? next.text : "The board is clear."}</span>
+          </div>
+        </section>
+
+        <section className="tide-dock">
+          <div className="tide-section-head">
+            <span className="tide-index">A / MARK</span>
+            <span>{items.filter((item) => !item.done).length} open reminders</span>
+          </div>
+          <h2>Set the next mark.</h2>
+          <form className="tide-form" onSubmit={addReminder}>
+            <label className="tide-message-field">
+              <span>MESSAGE</span>
+              <input
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="What should stay in view?"
+              />
+            </label>
+            <label>
+              <span>WHEN</span>
+              <input type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)} />
+            </label>
+            <button type="submit">Set reminder</button>
+          </form>
+          <p className="tide-note">
+            This board stores entries in localStorage. It does not send a notification
+            or sync to another device.
+          </p>
+        </section>
+
+        <section className="tide-list" aria-labelledby="tide-list-title">
+          <div className="tide-section-head">
+            <span className="tide-index">B / CURRENT</span>
+            <span>{items.length.toString().padStart(2, "0")} marks on chart</span>
+          </div>
+          <h2 id="tide-list-title">The current chart.</h2>
+          <ol className="tide-rows">
+            {ordered.map((item, index) => (
+              <li key={item.id} className={"tide-row " + (item.done ? "is-done" : "")}>
+                <span className="tide-row-index">{String(index + 1).padStart(2, "0")}</span>
+                <span className="tide-row-notch" aria-hidden="true" />
+                <div className="tide-row-copy">
+                  <strong>{item.text}</strong>
+                  <span>{readableWhen(item.when)}</span>
+                </div>
+                <label className="tide-complete">
+                  <input
+                    type="checkbox"
+                    checked={item.done}
+                    onChange={() =>
+                      setItems((current) =>
+                        current.map((value) =>
+                          value.id === item.id ? { ...value, done: !value.done } : value,
+                        ),
+                      )
+                    }
+                    aria-label={"Complete " + item.text}
+                  />
+                  <span>{item.done ? "LOGGED" : "OPEN"}</span>
+                </label>
+                <button
+                  className="tide-delete"
+                  type="button"
+                  onClick={() => setItems((current) => current.filter((value) => value.id !== item.id))}
+                  aria-label={"Delete " + item.text}
+                >
+                  Clear
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <footer className="tide-footer">
+          <span>BOOK / DEV TOOLS</span>
+          <span>MARK · WATCH · CLEAR</span>
+        </footer>
       </div>
-      <ul className="space-y-2">
-        {items.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-            <input type="checkbox" checked={r.done} onChange={() => setItems((p) => p.map((x) => x.id === r.id ? { ...x, done: !x.done } : x))} />
-            <span className={`flex-1 ${r.done ? "line-through text-zinc-400" : ""}`}>{r.text}</span>
-            <span className="text-xs text-zinc-500">{r.when.replace("T", " ")}</span>
-            <Button variant="ghost" onClick={() => setItems((p) => p.filter((x) => x.id !== r.id))}>×</Button>
-          </li>
-        ))}
-      </ul>
-    </Shell>
+    </main>
   );
 }
